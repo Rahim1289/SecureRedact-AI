@@ -6,13 +6,13 @@ import spacy
 import cv2
 import pytesseract
 from pytesseract import Output
-import fitz  # PyMuPDF
+import fitz  
 import docx
 from docx.shared import Inches
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
-# --- INITIALIZATION (No changes here) ---
+# INITIALIZATION
 logger = logging.getLogger(__name__)
 nlp = spacy.load("en_core_web_sm")
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -26,8 +26,7 @@ PII_PATTERNS = {
     'PAN': re.compile(r'[A-Z]{5}[0-9]{4}[A-Z]{1}'),
 }
 
-# --- PII DETECTION LOGIC (No changes here) ---
-# ... (all functions from detect_pii_with_gemini to find_all_pii remain the same)
+# PII DETECTION LOGIC
 def detect_pii_with_gemini(text, api_key):
     """Uses Google Gemini to detect PII in a block of text."""
     if not text or not text.strip():
@@ -88,9 +87,8 @@ def find_all_pii(text, options):
     return sorted(list(all_pii_text), key=len, reverse=True)
 
 
-# --- UTILITY FUNCTIONS (apply_watermark_to_image is unchanged) ---
+# UTILITY FUNCTIONS
 def apply_watermark_to_image(image):
-# ... (existing code for image watermarking)
     h, w, _ = image.shape
     overlay = image.copy()
     
@@ -124,7 +122,7 @@ def apply_watermark_to_image(image):
     return image
 
 
-# --- *** NEW & IMPROVED PDF WATERMARK FUNCTION *** ---
+# NEW & IMPROVED PDF WATERMARK FUNCTION
 def apply_pdf_watermark(page):
     """
     Applies a proper, centered, diagonal watermark to a PDF page using Shape.
@@ -162,9 +160,8 @@ def apply_pdf_watermark(page):
     shape.commit()
 
 
-# --- MAIN DISPATCHER (No changes here) ---
+# MAIN DISPATCHER
 def process_file(file_path, options):
-# ... (existing code)
     _, extension = os.path.splitext(file_path)
     extension = extension.lower()
     if extension in ['.png', '.jpg', '.jpeg']:
@@ -180,10 +177,9 @@ def process_file(file_path, options):
     else:
         raise ValueError(f"Unsupported file type: {extension}")
 
-# --- FILE-SPECIFIC REDACTORS (redact_pdf is updated) ---
+# FILE-SPECIFIC REDACTORS
 
 def redact_image(file_path, options):
-# ... (existing code for redact_image)
     if options.get('wipe_metadata'):
         img_pil = Image.open(file_path)
         data = list(img_pil.getdata())
@@ -239,7 +235,6 @@ def redact_pdf(file_path, options):
         
         page.apply_redactions()
 
-        # *** THE FIX IS HERE ***
         # We now call our new, robust watermarking function.
         if options.get('apply_watermark'):
             apply_pdf_watermark(page)
@@ -249,7 +244,6 @@ def redact_pdf(file_path, options):
     doc.close()
     return output_path
 
-# ... (rest of the file: redact_docx, redact_csv, redact_json are unchanged)
 def redact_docx(file_path, options):
     doc = docx.Document(file_path)
     full_text_content = "\n".join([p.text for p in doc.paragraphs])
