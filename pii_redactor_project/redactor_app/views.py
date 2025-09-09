@@ -9,7 +9,6 @@ from . import services
 
 logger = logging.getLogger(__name__)
 
-# This helper class is from our previous fix and remains crucial.
 class FileRemover:
     def __init__(self, file_path, mode='rb'):
         self.file_path = file_path
@@ -35,13 +34,11 @@ def redact_file_view(request):
     uploaded_file = request.FILES['file']
     
     # Collect all new options from the frontend
-    # THE CHANGE IS HERE: We now check for an environment variable as a fallback.
     options = {
         'gemini_api_key': request.POST.get('gemini_api_key') or os.environ.get('GEMINI_API_KEY'),
         'pii_types': json.loads(request.POST.get('pii_types', '[]')),
         'wipe_metadata': request.POST.get('wipe_metadata') == 'true',
         'apply_watermark': request.POST.get('apply_watermark') == 'true',
-        # Keep old options for image-specific redaction
         'image_redaction_method': request.POST.get('image_redaction_method', 'box'),
     }
 
@@ -55,9 +52,6 @@ def redact_file_view(request):
     try:
         redacted_file_path = services.process_file(uploaded_file_path, options)
         
-        # We no longer include Supabase logic in this view for simplicity.
-        # It can be re-added within the service layer if needed.
-
         response = FileResponse(FileRemover(redacted_file_path), as_attachment=True)
         return response
 

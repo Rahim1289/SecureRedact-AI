@@ -81,7 +81,7 @@ DATABASES = {
 }
 
 SUPABASE_URL = "https://bbhptgkfriqstxogypre.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJiaHB0Z2tmcmlxc3R4b2d5cHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMTk1MDYsImV4cCI6MjA3Mjg5NTUwNn0.T82XVUM1DwPt-BrTubqp7i7q-zmR5mcGGJbv_swAk8g"
+SUPABASE_KEY = "YOUR SUPABASE_KEY"
 
 
 # Password validation
