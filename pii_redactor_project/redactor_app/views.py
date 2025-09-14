@@ -1,72 +1,81 @@
 import os
-import json
+import tempfile
 import logging
-from django.shortcuts import render
 from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import FileSystemStorage
+from django.shortcuts import render
 from . import services
 
 logger = logging.getLogger(__name__)
 
-# This helper class is from our previous fix and remains crucial.
-class FileRemover:
-    def __init__(self, file_path, mode='rb'):
-        self.file_path = file_path
-        self._file = open(file_path, mode)
+# --- FUNCTION TO DISPLAY THE WEBPAGE ---
+def index(request):
+    """
+    This view simply renders the main index.html page.
+    """
+    return render(request, 'index.html')
 
-    def __getattr__(self, attr):
-        return getattr(self._file, attr)
+# --- HELPER CLASS FOR FILE DELETION ---
+class FileRemover:
+    def __init__(self, path):
+        self.path = path
+        self.file = open(self.path, 'rb')
+
+    def __iter__(self):
+        return self.file
 
     def close(self):
-        self._file.close()
-        if os.path.exists(self.file_path):
-            os.remove(self.file_path)
-
-def index(request):
-    """Renders the main HTML page."""
-    return render(request, 'index.html')
+        self.file.close()
+        try:
+            os.remove(self.path)
+            logger.info(f"Successfully removed temporary file: {self.path}")
+        except OSError as e:
+            logger.error(f"Error removing temporary file {self.path}: {e}")
 
 @csrf_exempt
 def redact_file_view(request):
-    if not (request.method == 'POST' and request.FILES.get('file')):
-        return JsonResponse({'error': 'Invalid request'}, status=400)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'error': 'No file provided'}, status=400)
 
     uploaded_file = request.FILES['file']
-    
-    # Collect all new options from the frontend
-    # THE CHANGE IS HERE: We now check for an environment variable as a fallback.
     options = {
-        'gemini_api_key': request.POST.get('gemini_api_key') or os.environ.get('GEMINI_API_KEY'),
-        'pii_types': json.loads(request.POST.get('pii_types', '[]')),
-        'wipe_metadata': request.POST.get('wipe_metadata') == 'true',
+        'ai_model_choice': request.POST.get('ai_model_choice', 'local'),
+        'pii_types': request.POST.getlist('pii_types[]'),
         'apply_watermark': request.POST.get('apply_watermark') == 'true',
-        # Keep old options for image-specific redaction
-        'image_redaction_method': request.POST.get('image_redaction_method', 'box'),
+        'wipe_metadata': request.POST.get('wipe_metadata') == 'true',
+        'covert_redaction': request.POST.get('covert_redaction') == 'true',
+        'gemini_api_key': os.getenv('GEMINI_API_KEY')
     }
 
-    if not options.get('gemini_api_key'):
-        return JsonResponse({'error': 'Gemini API Key is required for processing. Please enter it in the UI or set the GEMINI_API_KEY environment variable.'}, status=400)
-
-    fs = FileSystemStorage()
-    filename = fs.save(uploaded_file.name, uploaded_file)
-    uploaded_file_path = fs.path(filename)
-    
+    uploaded_file_path = None
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as temp_file:
+            for chunk in uploaded_file.chunks():
+                temp_file.write(chunk)
+            uploaded_file_path = temp_file.name
+        
+        logger.info(f"File uploaded to temporary path: {uploaded_file_path}")
         redacted_file_path = services.process_file(uploaded_file_path, options)
         
-        # We no longer include Supabase logic in this view for simplicity.
-        # It can be re-added within the service layer if needed.
+        response = FileResponse(FileRemover(redacted_file_path))
+        redacted_filename = os.path.basename(redacted_file_path)
+        response['Content-Disposition'] = f'attachment; filename="{redacted_filename}"'
+        response['Content-Type'] = 'application/octet-stream'
 
-        response = FileResponse(FileRemover(redacted_file_path), as_attachment=True)
+        logger.info(f"Sending redacted file '{redacted_filename}' to user.")
         return response
 
     except Exception as e:
-        logger.error(f"Redaction failed for {filename}: {e}", exc_info=True)
-        return JsonResponse({'error': f"An unexpected error occurred: {e}"}, status=500)
-    
+        logger.error(f"Redaction failed for {uploaded_file.name}: {e}", exc_info=True)
+        return JsonResponse({'error': f"Redaction failed: {e}"}, status=500)
     finally:
-        if os.path.exists(uploaded_file_path):
-            os.remove(uploaded_file_path)
-
+        if uploaded_file_path and os.path.exists(uploaded_file_path):
+            try:
+                os.remove(uploaded_file_path)
+                logger.info(f"Successfully removed original uploaded file: {uploaded_file_path}")
+            except OSError as e:
+                logger.error(f"Error removing original uploaded file {uploaded_file_path}: {e}")
 

@@ -6,334 +6,237 @@
     <title>Intelligent PII Redaction Tool</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide-react@0.292.0/dist/umd/lucide-react.js"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .drop-zone {
-            border: 2px dashed #cbd5e1;
-            transition: background-color 0.2s, border-color 0.2s;
-        }
-        .drop-zone--over {
-            border-color: #3b82f6;
-            background-color: #eff6ff;
-        }
-        .loader {
-            border-top-color: #3498db;
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
             animation: spin 1s linear infinite;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .form-switch {
-            position: relative;
-            display: inline-block;
-            width: 40px;
-            height: 24px;
+        /* Style for the file drop area when dragging a file over it */
+        .file-drop-area.dragover {
+            background-color: #eef2ff; /* Light mode: indigo-50 */
         }
-        .form-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #3b82f6;
-        }
-        input:checked + .slider:before {
-            transform: translateX(16px);
+        .dark .file-drop-area.dragover {
+            background-color: #312e81; /* Dark mode: indigo-900 */
         }
     </style>
+    <script>
+        // Set theme on initial load
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 flex items-center justify-center min-h-screen p-4 transition-colors duration-300">
+    <div class="w-full max-w-3xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden relative">
+        <!-- Theme Toggle Button -->
+        <button id="theme-toggle" type="button" class="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5">
+            <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+            <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+        </button>
 
-    <!-- Navbar remains the same -->
-    <nav class="bg-white shadow-sm sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex-shrink-0 flex items-center space-x-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                    <span class="font-bold text-xl text-gray-800">SecureRedact AI</span>
-                </div>
+        <div class="p-8 space-y-8">
+            <!-- Header -->
+            <div class="text-center">
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Intelligent PII Redaction Tool</h1>
+                <p class="text-gray-500 dark:text-gray-400 mt-2">Securely remove sensitive data with AI-powered precision.</p>
             </div>
-        </div>
-    </nav>
 
-    <div class="min-h-screen flex flex-col items-center justify-center p-4 pt-10">
-        <div class="w-full max-w-2xl mx-auto">
-            
-            <header class="text-center mb-8">
-                <h1 class="text-4xl font-bold text-gray-900">Intelligent PII Redaction Tool</h1>
-                <p class="text-lg text-gray-600 mt-2">Powered by Google Gemini for unparalleled accuracy. Your privacy is our priority.</p>
-            </header>
-
-            <main id="app" class="bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+            <form id="redaction-form" class="space-y-6">
+                <!-- File Upload -->
+                <div>
+                    <label for="file-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">1. Upload File</label>
+                    <div id="file-drop-area" class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition">
+                        <div class="space-y-1 text-center">
+                            <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                            <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                <p class="pl-1">or drag and drop</p>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">PDF, DOCX, PNG, JPG</p>
+                            <p id="file-name-display" class="text-sm font-semibold text-blue-600 dark:text-blue-400 pt-2"></p>
+                        </div>
+                    </div>
+                    <input id="file-upload" name="file" type="file" class="hidden">
+                </div>
                 
-                <!-- Upload Section -->
-                <div id="uploadSection">
-                    <!-- Drop Zone remains the same -->
-                     <div id="dropZone" class="drop-zone w-full p-10 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50">
-                        <svg class="w-16 h-16 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3.75 3.75M12 9.75l3.75 3.75M3 17.25V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5A2.25 2.25 0 0118.75 19.5H5.25A2.25 2.25 0 013 17.25z" />
-                        </svg>
-                        <p class="text-gray-700 font-semibold">Drag & Drop your file here</p>
-                        <p class="text-gray-500 text-sm mt-1">or <span class="text-blue-600 font-medium">click to browse</span></p>
-                        <input type="file" id="fileInput" class="hidden">
-                        <p class="text-xs text-gray-400 mt-4">Supports: PNG, JPG, PDF, DOCX, CSV, JSON</p>
-                    </div>
+                <!-- AI Model Selection -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">2. Select AI Model</label>
+                    <select name="ai_model_choice" class="w-full bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="local" selected>Local AI Model (Private & Fast)</option>
+                        <option value="gemini">Google Gemini (Most Powerful)</option>
+                    </select>
+                </div>
 
-                    <div id="filePreview" class="hidden mt-6 text-center">
-                        <p class="font-medium text-gray-700">Selected File:</p>
-                        <p id="fileName" class="text-sm text-blue-600 bg-blue-50 py-2 px-4 rounded-lg inline-block mt-2"></p>
+                <!-- Redaction & Security Options -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">3. Redaction Options</label>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <label class="flex items-center"><input type="checkbox" name="pii_types[]" value="NAME" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" checked><span class="ml-2 text-sm">Names</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="pii_types[]" value="EMAIL" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" checked><span class="ml-2 text-sm">Emails</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="pii_types[]" value="PHONE" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" checked><span class="ml-2 text-sm">Phones</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="pii_types[]" value="AADHAAR" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" checked><span class="ml-2 text-sm">Aadhaar</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="pii_types[]" value="PAN" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500" checked><span class="ml-2 text-sm">PAN Card</span></label>
                     </div>
                 </div>
 
-                <!-- Options Section -->
-                <div id="optionsSection" class="hidden mt-8">
-                    <h2 class="text-xl font-semibold text-gray-800 border-b pb-2 mb-4">Redaction Configuration</h2>
-                    
-                    <!-- Gemini API Key Input -->
-                    <div class="mb-6">
-                        <label for="geminiApiKey" class="block font-medium text-gray-700 mb-2">Google Gemini API Key</label>
-                        <input type="password" id="geminiApiKey" name="gemini_api_key" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Enter your API key for enhanced detection">
-                        <p class="text-xs text-gray-500 mt-1">Your key is sent directly to the server for a one-time use and is never stored.</p>
-                    </div>
-
-                    <!-- PII Types -->
-                    <div>
-                        <h3 class="font-medium text-gray-700 mb-3">PII to Detect (Gemini will find others too):</h3>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            <!-- Checkboxes remain the same -->
-                             <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="EMAIL" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>Emails</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="PHONE" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>Phone Numbers</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="NAME" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>Names</span>
-                            </label>
-                             <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="CREDIT_CARD" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>Credit Cards</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="AADHAAR" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>Aadhaar Numbers</span>
-                            </label>
-                            <label class="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
-                                <input type="checkbox" name="pii_type" value="PAN" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
-                                <span>PAN Numbers</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Security Options -->
-                    <div class="mt-6 space-y-4">
-                        <h3 class="font-medium text-gray-700 mb-2">Privacy & Security Enhancements:</h3>
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div>
-                                <span class="font-medium">Wipe Metadata</span>
-                                <p class="text-xs text-gray-500">Removes EXIF data from images and author info from docs.</p>
-                            </div>
-                            <label class="form-switch">
-                                <input type="checkbox" id="wipeMetadata" name="wipe_metadata" checked>
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div>
-                                <span class="font-medium">Apply Redaction Watermark</span>
-                                <p class="text-xs text-gray-500">Adds a 'REDACTED' watermark to the output file.</p>
-                            </div>
-                            <label class="form-switch">
-                                <input type="checkbox" id="applyWatermark" name="apply_watermark">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Submit Button -->
-                    <div class="mt-8 text-center">
-                        <button id="redactButton" class="w-full sm:w-auto bg-blue-600 text-white font-semibold py-3 px-12 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400">
-                           Start Secure Redaction
-                        </button>
+                 <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">4. Security Features</label>
+                    <div class="space-y-3">
+                        <label class="flex items-center"><input type="checkbox" name="wipe_metadata" value="true" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"><span class="ml-2 text-sm">Wipe File Metadata</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="apply_watermark" value="true" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"><span class="ml-2 text-sm">Apply "REDACTED" Watermark</span></label>
+                        <label class="flex items-center"><input type="checkbox" name="covert_redaction" value="true" class="h-4 w-4 rounded bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"><span class="ml-2 text-sm">Use Covert Redaction (Unnoticeable)</span></label>
                     </div>
                 </div>
 
-                <!-- Result Section remains mostly the same -->
-                 <div id="resultSection" class="hidden text-center mt-8">
-                    <div id="loader" class="flex flex-col items-center justify-center">
-                        <div class="loader h-12 w-12 rounded-full border-4 border-gray-200"></div>
-                        <p id="loaderText" class="ml-4 text-lg font-medium text-gray-700 mt-4">Processing, please wait...</p>
-                    </div>
-                    <div id="downloadContainer" class="hidden">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-green-500 bg-green-100 p-2 rounded-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-                        <h2 class="text-2xl font-semibold text-green-600 mt-4 mb-2">Redaction Complete!</h2>
-                        <p class="text-gray-600 mb-6">Your file has been securely processed and is ready for download.</p>
-                        <a id="downloadLink" class="inline-block bg-green-600 text-white font-semibold py-3 px-12 rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                            Download Now
-                        </a>
-                    </div>
-                     <div id="errorContainer" class="hidden">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-red-500 bg-red-100 p-2 rounded-full"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                        <h2 class="text-2xl font-semibold text-red-600 mt-4 mb-2">An Error Occurred</h2>
-                        <p id="errorMessage" class="text-gray-600 bg-red-50 p-4 rounded-lg"></p>
-                    </div>
-                </div>
-
-            </main>
+                <!-- Submit Button -->
+                <button type="submit" id="submit-btn" class="w-full flex justify-center items-center gap-x-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-colors duration-300 disabled:bg-gray-500 dark:disabled:bg-gray-600">
+                    <span id="btn-text">Redact File</span>
+                    <div id="spinner" class="spinner hidden"></div>
+                </button>
+            </form>
         </div>
+        <!-- Status Message Area -->
+        <div id="status-message" class="px-8 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 hidden"></div>
     </div>
 
     <script>
-        // All element selectors remain the same
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const filePreview = document.getElementById('filePreview');
-        const fileNameEl = document.getElementById('fileName');
-        const optionsSection = document.getElementById('optionsSection');
-        const redactButton = document.getElementById('redactButton');
-        const resultSection = document.getElementById('resultSection');
-        const loader = document.getElementById('loader');
-        const loaderText = document.getElementById('loaderText');
-        const downloadContainer = document.getElementById('downloadContainer');
-        const errorContainer = document.getElementById('errorContainer');
-        const errorMessageEl = document.getElementById('errorMessage');
-        const downloadLink = document.getElementById('downloadLink');
+        // --- THEME TOGGLE LOGIC ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
 
-        // New element selectors
-        const geminiApiKeyInput = document.getElementById('geminiApiKey');
-        const wipeMetadataCheckbox = document.getElementById('wipeMetadata');
-        const applyWatermarkCheckbox = document.getElementById('applyWatermark');
+        // Function to update the icon based on the current theme
+        const updateIcon = () => {
+            if (document.documentElement.classList.contains('dark')) {
+                lightIcon.classList.remove('hidden');
+                darkIcon.classList.add('hidden');
+            } else {
+                lightIcon.classList.add('hidden');
+                darkIcon.classList.remove('hidden');
+            }
+        };
 
-        let selectedFile = null;
-        
-        // Event listeners remain the same
-        dropZone.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', () => handleFileSelect(fileInput.files));
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, preventDefaults, false));
-        ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('drop-zone--over'), false));
-        ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('drop-zone--over'), false));
-        dropZone.addEventListener('drop', (e) => handleFileSelect(e.dataTransfer.files), false);
-        redactButton.addEventListener('click', handleRedaction);
+        // Event listener for the toggle button
+        themeToggleBtn.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.theme = isDark ? 'dark' : 'light';
+            updateIcon();
+        });
 
-        function preventDefaults(e) {
+        // Set the correct icon on initial load
+        updateIcon();
+
+        // --- FORM AND REDACTION LOGIC ---
+        const form = document.getElementById('redaction-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('status-message');
+        const fileUpload = document.getElementById('file-upload');
+        const fileDropArea = document.getElementById('file-drop-area');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        fileDropArea.addEventListener('click', () => fileUpload.click());
+        fileDropArea.addEventListener('dragover', (e) => { e.preventDefault(); fileDropArea.classList.add('dragover'); });
+        fileDropArea.addEventListener('dragleave', () => fileDropArea.classList.remove('dragover'));
+        fileDropArea.addEventListener('drop', (e) => {
             e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        function handleFileSelect(files) {
-            if (files.length === 0) return;
-            selectedFile = files[0];
-            fileNameEl.textContent = selectedFile.name;
-            filePreview.classList.remove('hidden');
-            optionsSection.classList.remove('hidden');
-        }
-        
-        function updateLoaderText(text) {
-            loaderText.textContent = text;
-        }
-
-        async function handleRedaction() {
-            if (!selectedFile) {
-                showError("Please select a file first.");
-                return;
+            fileDropArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileUpload.files = e.dataTransfer.files;
+                fileNameDisplay.textContent = e.dataTransfer.files[0].name;
             }
-            if (!geminiApiKeyInput.value) {
-                showError("Please provide a Gemini API Key for intelligent detection.");
+        });
+        fileUpload.addEventListener('change', () => {
+            if (fileUpload.files.length > 0) {
+                fileNameDisplay.textContent = fileUpload.files[0].name;
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            if (!formData.get('file')?.size) {
+                showStatus('Please select a file first.', 'error');
                 return;
             }
 
-            // Collect all options from the form
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            formData.append('gemini_api_key', geminiApiKeyInput.value);
-            formData.append('pii_types', JSON.stringify(Array.from(document.querySelectorAll('input[name="pii_type"]:checked')).map(el => el.value)));
-            formData.append('wipe_metadata', wipeMetadataCheckbox.checked);
-            formData.append('apply_watermark', applyWatermarkCheckbox.checked);
+            setLoading(true);
 
-            // UI updates
-            redactButton.disabled = true;
-            redactButton.textContent = 'Processing...';
-            resultSection.classList.remove('hidden');
-            loader.classList.remove('hidden');
-            downloadContainer.classList.add('hidden');
-            errorContainer.classList.add('hidden');
-            updateLoaderText('Uploading and analyzing file with Gemini...');
-            
             try {
-                // The fetch call remains the same, but the server now does more work
                 const response = await fetch('/redact/', { method: 'POST', body: formData });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => {
-                        throw new Error(`Server returned a non-JSON error. Status: ${response.status}. Check server logs for details.`);
-                    });
-                    throw new Error(errorData.error || `An unknown error occurred. Status: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ error: 'An unknown server error occurred.' }));
+                    throw new Error(errorData.error || `Server responded with status: ${response.status}`);
                 }
                 
-                updateLoaderText('Redaction complete. Preparing secure download...');
                 const blob = await response.blob();
-                const contentDisposition = response.headers.get('content-disposition');
-                let downloadFilename = `redacted-${selectedFile.name}`;
-                if (contentDisposition) {
-                    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-                    if (filenameMatch && filenameMatch.length > 1) {
-                        downloadFilename = filenameMatch[1];
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = "redacted_file";
+                if (disposition && disposition.indexOf('attachment') !== -1) {
+                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                    const matches = filenameRegex.exec(disposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
                     }
                 }
                 
                 const url = window.URL.createObjectURL(blob);
-                downloadLink.href = url;
-                downloadLink.download = downloadFilename;
-                showDownload();
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                
+                showStatus('Redaction successful! Download has started.', 'success');
 
             } catch (error) {
-                console.error('Redaction failed:', error);
-                showError(error.message);
+                console.error('Fetch error:', error);
+                showStatus(error.message || 'A network error occurred. Please try again.', 'error');
             } finally {
-                redactButton.disabled = false;
-                redactButton.textContent = 'Start Secure Redaction';
+                setLoading(false);
+            }
+        });
+
+        function setLoading(isLoading) {
+            submitBtn.disabled = isLoading;
+            if (isLoading) {
+                btnText.textContent = 'Processing...';
+                spinner.classList.remove('hidden');
+                statusMessage.classList.add('hidden');
+            } else {
+                btnText.textContent = 'Redact File';
+                spinner.classList.add('hidden');
             }
         }
 
-        function showError(message) {
-            loader.classList.add('hidden');
-            downloadContainer.classList.add('hidden');
-            errorContainer.classList.remove('hidden');
-            errorMessageEl.textContent = message;
-        }
-
-        function showDownload() {
-            loader.classList.add('hidden');
-            errorContainer.classList.add('hidden');
-            downloadContainer.classList.remove('hidden');
+        function showStatus(message, type) {
+            statusMessage.innerHTML = '';
+            const p = document.createElement('p');
+            p.textContent = message;
+            if (type === 'success') {
+                p.className = 'text-green-500 dark:text-green-400 text-sm';
+            } else {
+                p.className = 'text-red-600 dark:text-red-400 text-sm';
+            }
+            statusMessage.appendChild(p);
+            statusMessage.classList.remove('hidden');
         }
     </script>
 </body>

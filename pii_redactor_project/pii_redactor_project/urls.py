@@ -3,5 +3,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('redactor_app.urls')), # Include app urls
+    # This line tells Django to use the URL patterns from your 'redactor_app'.
+    path('', include('redactor_app.urls')),
 ]
