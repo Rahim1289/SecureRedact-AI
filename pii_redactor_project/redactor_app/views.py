@@ -8,6 +8,7 @@ from . import services
 
 logger = logging.getLogger(__name__)
 
+
 # --- FUNCTION TO DISPLAY THE WEBPAGE ---
 def index(request):
     """
@@ -16,6 +17,7 @@ def index(request):
     return render(request, 'index.html')
 
 # --- HELPER CLASS FOR FILE DELETION ---
+
 class FileRemover:
     def __init__(self, path):
         self.path = path
@@ -41,13 +43,21 @@ def redact_file_view(request):
         return JsonResponse({'error': 'No file provided'}, status=400)
 
     uploaded_file = request.FILES['file']
+
+    
+    # Collect all new options from the frontend
+
     options = {
         'ai_model_choice': request.POST.get('ai_model_choice', 'local'),
         'pii_types': request.POST.getlist('pii_types[]'),
         'apply_watermark': request.POST.get('apply_watermark') == 'true',
+
         'wipe_metadata': request.POST.get('wipe_metadata') == 'true',
         'covert_redaction': request.POST.get('covert_redaction') == 'true',
         'gemini_api_key': os.getenv('GEMINI_API_KEY')
+
+        'image_redaction_method': request.POST.get('image_redaction_method', 'box'),
+
     }
 
     uploaded_file_path = None
@@ -60,12 +70,16 @@ def redact_file_view(request):
         logger.info(f"File uploaded to temporary path: {uploaded_file_path}")
         redacted_file_path = services.process_file(uploaded_file_path, options)
         
+
         response = FileResponse(FileRemover(redacted_file_path))
         redacted_filename = os.path.basename(redacted_file_path)
         response['Content-Disposition'] = f'attachment; filename="{redacted_filename}"'
         response['Content-Type'] = 'application/octet-stream'
 
         logger.info(f"Sending redacted file '{redacted_filename}' to user.")
+
+        response = FileResponse(FileRemover(redacted_file_path), as_attachment=True)
+
         return response
 
     except Exception as e:

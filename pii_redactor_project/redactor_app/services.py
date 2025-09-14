@@ -6,12 +6,13 @@ import spacy
 import cv2
 import pytesseract
 from pytesseract import Output
-import fitz  # PyMuPDF
+import fitz  
 import docx
 from docx.shared import RGBColor
 from PIL import Image
 import requests
 from steganography.steganography import Steganography
+
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -21,6 +22,7 @@ torch = None
 local_ner_pipeline = None
 
 # --- INITIALIZATION ---
+
 logger = logging.getLogger(__name__)
 nlp_spacy = spacy.load("en_core_web_sm")
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -39,6 +41,7 @@ PII_PATTERNS = {
     'DRIVING_LICENCE': re.compile(r'[A-Z]{2}[0-9]{2}\s?[0-9]{4}\s?[0-9]{7}'), # Common DL format
     'GSTIN': re.compile(r'[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}')
 }
+
 
 # --- LOCAL AI MODEL FUNCTION ---
 def initialize_local_ner():
@@ -79,6 +82,12 @@ def detect_pii_with_local_ner(text):
         return list(pii_entities)
     except Exception as e:
         logger.error(f"Error during local NER processing: {e}")
+
+# PII DETECTION LOGIC
+def detect_pii_with_gemini(text, api_key):
+    """Uses Google Gemini to detect PII in a block of text."""
+    if not text or not text.strip():
+
         return []
 
 def detect_pii_with_gemini(text, api_key):
@@ -119,6 +128,45 @@ def find_all_pii(text, options):
                 all_pii_text.add(ent.text)
     return sorted(list(all_pii_text), key=len, reverse=True)
 
+
+
+# UTILITY FUNCTIONS
+def apply_watermark_to_image(image):
+    h, w, _ = image.shape
+    overlay = image.copy()
+    
+    cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.5, image, 0.5, 0, image)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text = "REDACTED"
+    (text_w, text_h), _ = cv2.getTextSize(text, font, 2, 3)
+    center_x, center_y = w // 2, h // 2
+    
+    M = cv2.getRotationMatrix2D((center_x, center_y), -45, 1.0)
+    cos = abs(M[0, 0])
+    sin = abs(M[0, 1])
+    
+    nW = int((h * sin) + (w * cos))
+    nH = int((h * cos) + (w * sin))
+    
+    M[0, 2] += (nW / 2) - center_x
+    M[1, 2] += (nH / 2) - center_y
+    
+    rotated_text_canvas = cv2.warpAffine(image, M, (nW, nH), flags=cv2.INTER_LINEAR, borderValue=(0,0,0,0))
+    cv2.putText(rotated_text_canvas, text, (center_x - text_w//2, center_y + text_h//2), font, 2, (255, 255, 255), 3, cv2.LINE_AA)
+
+    M_inv = cv2.getRotationMatrix2D((nW // 2, nH // 2), 45, 1.0)
+    M_inv[0, 2] += (w / 2) - nW//2
+    M_inv[1, 2] += (h / 2) - nH//2
+    
+    final_img = cv2.warpAffine(rotated_text_canvas, M_inv, (w, h), flags=cv2.INTER_LINEAR, borderValue=(0,0,0,0))
+    cv2.addWeighted(image, 1, final_img, 1, 0, image)
+    return image
+
+
+# NEW & IMPROVED PDF WATERMARK FUNCTION
+
 def apply_pdf_watermark(page):
     r = page.rect
     text = "REDACTED"
@@ -129,10 +177,44 @@ def apply_pdf_watermark(page):
     shape.insert_text(pos, text, fontname="helv-bold", fontsize=font_size, color=(0.8, 0.8, 0.8), fill_opacity=0.5, rotate=45)
     shape.commit()
 
+
 def redact_image(file_path, options):
     output_path = file_path.replace(os.path.splitext(file_path)[1], "_redacted.png")
     img_cv = cv2.cvtColor(cv2.imread(file_path), cv2.COLOR_BGR2RGB)
     gray = cv2.cvtColor(img_cv, cv2.COLOR_RGB2GRAY)
+
+
+# MAIN DISPATCHER
+def process_file(file_path, options):
+    _, extension = os.path.splitext(file_path)
+    extension = extension.lower()
+    if extension in ['.png', '.jpg', '.jpeg']:
+        return redact_image(file_path, options)
+    elif extension == '.pdf':
+        return redact_pdf(file_path, options)
+    elif extension == '.docx':
+        return redact_docx(file_path, options)
+    elif extension == '.csv':
+        return redact_csv(file_path, options)
+    elif extension == '.json':
+        return redact_json(file_path, options)
+    else:
+        raise ValueError(f"Unsupported file type: {extension}")
+
+# FILE-SPECIFIC REDACTORS
+
+def redact_image(file_path, options):
+    if options.get('wipe_metadata'):
+        img_pil = Image.open(file_path)
+        data = list(img_pil.getdata())
+        image_without_metadata = Image.new(img_pil.mode, img_pil.size)
+        image_without_metadata.putdata(data)
+        image_without_metadata.save(file_path)
+
+    img = cv2.imread(file_path)
+    
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
     for (x, y, w, h) in faces:
         cv2.rectangle(img_cv, (x, y), (x + w, y + h), (0, 0, 0), -1)
@@ -175,12 +257,21 @@ def redact_pdf(file_path, options):
         for pii in pii_to_redact:
             areas = page.search_for(pii)
             for inst in areas:
+
                 if options.get('covert_redaction'):
                     page.draw_rect(inst, color=(1, 1, 1), fill=(1, 1, 1), overlay=True)
                 else:
                     page.add_redact_annot(inst, fill=(0, 0, 0))
         if not options.get('covert_redaction'): page.apply_redactions()
         if options.get('apply_watermark') and not options.get('covert_redaction'):
+
+                page.add_redact_annot(inst, fill=(0, 0, 0))
+        
+        page.apply_redactions()
+
+        # We now call our new, robust watermarking function.
+        if options.get('apply_watermark'):
+
             apply_pdf_watermark(page)
     output_path = file_path.replace(".pdf", "_redacted.pdf")
     doc.save(output_path, garbage=4, deflate=True, clean=True)
